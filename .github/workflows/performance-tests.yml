@@ -2,9 +2,9 @@ name: Performance Tests
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main, master, develop]
   pull_request:
-    branches: [main]
+    branches: [main, master]
   schedule:
     # Run nightly at 2 AM UTC — catch regressions before business hours
     - cron: "0 2 * * *"
