@@ -23,10 +23,11 @@ lerna-debug.log*
 # k6 output
 k6-results/
 *.json.gz
+k6-*-results.json
 
 # Artillery reports
 artillery-reports/
-*.json
+artillery-*-report.json
 
 # Lighthouse CI
 .lighthouseci/

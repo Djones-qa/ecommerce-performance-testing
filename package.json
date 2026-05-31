@@ -1,0 +1,60 @@
+{
+  "name": "ecommerce-performance-testing",
+  "version": "1.0.0",
+  "description": "Production-grade performance & load testing suite for e-commerce REST APIs using k6, Artillery, Lighthouse CI, and Grafana",
+  "main": "dist/mock-server/app.js",
+  "scripts": {
+    "build": "tsc --project tsconfig.json",
+    "mock-server": "ts-node src/mock-server/app.ts",
+    "mock-server:prod": "node dist/mock-server/app.js",
+    "k6:load": "k6 run --out influxdb=http://localhost:8086/k6 src/k6/scenarios/load-test.ts",
+    "k6:stress": "k6 run --out influxdb=http://localhost:8086/k6 src/k6/scenarios/stress-test.ts",
+    "k6:soak": "k6 run --out influxdb=http://localhost:8086/k6 src/k6/scenarios/soak-test.ts",
+    "k6:spike": "k6 run --out influxdb=http://localhost:8086/k6 src/k6/scenarios/spike-test.ts",
+    "artillery:checkout": "artillery run src/artillery/checkout-spike.yml",
+    "artillery:search": "artillery run src/artillery/product-search-load.yml",
+    "lighthouse": "lhci autorun",
+    "report": "ts-node scripts/generate-report.ts",
+    "docker:up": "docker-compose -f docker/docker-compose.yml up -d",
+    "docker:down": "docker-compose -f docker/docker-compose.yml down",
+    "lint": "eslint src/**/*.ts scripts/**/*.ts --fix",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "k6",
+    "performance-testing",
+    "load-testing",
+    "ecommerce",
+    "artillery",
+    "lighthouse",
+    "grafana",
+    "stress-testing",
+    "api-testing",
+    "web-vitals"
+  ],
+  "author": "Darrius Jones <darrius@fintech-contract-testing.dev>",
+  "license": "MIT",
+  "dependencies": {
+    "compression": "1.7.4",
+    "cors": "2.8.5",
+    "express": "5.0.1",
+    "morgan": "1.10.0",
+    "uuid": "9.0.1"
+  },
+  "devDependencies": {
+    "@lhci/cli": "0.13.0",
+    "@types/compression": "1.7.5",
+    "@types/cors": "2.8.17",
+    "@types/express": "5.0.1",
+    "@types/k6": "0.54.2",
+    "@types/morgan": "1.9.9",
+    "@types/node": "20.11.5",
+    "@types/uuid": "9.0.8",
+    "@typescript-eslint/eslint-plugin": "6.19.1",
+    "@typescript-eslint/parser": "6.19.1",
+    "artillery": "2.0.21",
+    "eslint": "8.56.0",
+    "ts-node": "10.9.2",
+    "typescript": "5.3.3"
+  }
+}
