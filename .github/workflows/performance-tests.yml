@@ -1,0 +1,370 @@
+name: Performance Tests
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Run nightly at 2 AM UTC — catch regressions before business hours
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+    inputs:
+      test_type:
+        description: "Test type to run"
+        required: true
+        default: "load"
+        type: choice
+        options:
+          - load
+          - stress
+          - spike
+          - all
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "20"
+  K6_VERSION: "0.49.0"
+  BASE_URL: "http://localhost:3000"
+
+jobs:
+  # ── Type Check & Lint ────────────────────────────────────────────────────────
+  typecheck:
+    name: TypeScript Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript type check
+        run: npm run typecheck
+
+  # ── Start Mock API ───────────────────────────────────────────────────────────
+  start-mock-api:
+    name: Start Mock API Server
+    runs-on: ubuntu-latest
+    outputs:
+      server-ready: ${{ steps.health.outputs.ready }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Start mock API server
+        run: |
+          npm run mock-server &
+          echo "SERVER_PID=$!" >> $GITHUB_ENV
+
+      - name: Wait for server to be ready
+        id: health
+        run: |
+          for i in {1..30}; do
+            if curl -sf http://localhost:3000/health > /dev/null; then
+              echo "✅ Mock API is ready"
+              echo "ready=true" >> $GITHUB_OUTPUT
+              exit 0
+            fi
+            echo "Waiting for server... attempt $i/30"
+            sleep 2
+          done
+          echo "❌ Server failed to start"
+          exit 1
+
+  # ── k6 Load Test ─────────────────────────────────────────────────────────────
+  k6-load-test:
+    name: k6 Load Test (500 VUs)
+    runs-on: ubuntu-latest
+    needs: [typecheck]
+    if: github.event.inputs.test_type == 'load' || github.event.inputs.test_type == 'all' || github.event.inputs.test_type == ''
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install k6
+        run: |
+          sudo gpg -k
+          sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg \
+            --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" \
+            | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update
+          sudo apt-get install k6
+
+      - name: Start mock API server
+        run: |
+          npm run mock-server &
+          sleep 5
+          curl -sf http://localhost:3000/health || exit 1
+
+      - name: Run k6 load test
+        run: |
+          k6 run \
+            --out json=k6-load-results.json \
+            --env BASE_URL=${{ env.BASE_URL }} \
+            src/k6/scenarios/load-test.ts
+        env:
+          K6_NO_USAGE_REPORT: "true"
+
+      - name: Generate HTML report
+        if: always()
+        run: |
+          npm run report -- --input k6-load-results.json --output reports/load-test-report.html --name "Load Test (500 VUs)"
+        continue-on-error: true
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: k6-load-test-results
+          path: |
+            k6-load-results.json
+            reports/load-test-report.html
+          retention-days: 30
+
+  # ── k6 Stress Test ───────────────────────────────────────────────────────────
+  k6-stress-test:
+    name: k6 Stress Test (Breaking Point)
+    runs-on: ubuntu-latest
+    needs: [typecheck]
+    if: github.event.inputs.test_type == 'stress' || github.event.inputs.test_type == 'all'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install k6
+        run: |
+          sudo gpg -k
+          sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg \
+            --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" \
+            | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update
+          sudo apt-get install k6
+
+      - name: Start mock API server
+        run: |
+          npm run mock-server &
+          sleep 5
+          curl -sf http://localhost:3000/health || exit 1
+
+      - name: Run k6 stress test
+        run: |
+          k6 run \
+            --out json=k6-stress-results.json \
+            --env BASE_URL=${{ env.BASE_URL }} \
+            src/k6/scenarios/stress-test.ts
+        env:
+          K6_NO_USAGE_REPORT: "true"
+
+      - name: Upload stress test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: k6-stress-test-results
+          path: k6-stress-results.json
+          retention-days: 30
+
+  # ── k6 Spike Test ────────────────────────────────────────────────────────────
+  k6-spike-test:
+    name: k6 Spike Test (Black Friday)
+    runs-on: ubuntu-latest
+    needs: [typecheck]
+    if: github.event.inputs.test_type == 'spike' || github.event.inputs.test_type == 'all'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install k6
+        run: |
+          sudo gpg -k
+          sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg \
+            --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" \
+            | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update
+          sudo apt-get install k6
+
+      - name: Start mock API server
+        run: |
+          npm run mock-server &
+          sleep 5
+          curl -sf http://localhost:3000/health || exit 1
+
+      - name: Run k6 spike test
+        run: |
+          k6 run \
+            --out json=k6-spike-results.json \
+            --env BASE_URL=${{ env.BASE_URL }} \
+            src/k6/scenarios/spike-test.ts
+        env:
+          K6_NO_USAGE_REPORT: "true"
+
+      - name: Upload spike test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: k6-spike-test-results
+          path: k6-spike-results.json
+          retention-days: 30
+
+  # ── Artillery Tests ──────────────────────────────────────────────────────────
+  artillery-tests:
+    name: Artillery Spike & Search Tests
+    runs-on: ubuntu-latest
+    needs: [typecheck]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Start mock API server
+        run: |
+          npm run mock-server &
+          sleep 5
+          curl -sf http://localhost:3000/health || exit 1
+
+      - name: Run Artillery product search load test
+        run: |
+          npx artillery run \
+            --output artillery-search-report.json \
+            src/artillery/product-search-load.yml
+        continue-on-error: true
+
+      - name: Run Artillery checkout spike test
+        run: |
+          npx artillery run \
+            --output artillery-checkout-report.json \
+            src/artillery/checkout-spike.yml
+        continue-on-error: true
+
+      - name: Generate Artillery HTML reports
+        if: always()
+        run: |
+          npx artillery report artillery-search-report.json --output reports/artillery-search-report.html || true
+          npx artillery report artillery-checkout-report.json --output reports/artillery-checkout-report.html || true
+
+      - name: Upload Artillery results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: artillery-test-results
+          path: |
+            artillery-search-report.json
+            artillery-checkout-report.json
+            reports/artillery-*.html
+          retention-days: 30
+
+  # ── Lighthouse CI ────────────────────────────────────────────────────────────
+  lighthouse:
+    name: Lighthouse Core Web Vitals
+    runs-on: ubuntu-latest
+    needs: [typecheck]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Start mock API server
+        run: |
+          npm run mock-server &
+          sleep 5
+          curl -sf http://localhost:3000/health || exit 1
+
+      - name: Run Lighthouse CI
+        run: npx lhci autorun
+        env:
+          LHCI_GITHUB_APP_TOKEN: ${{ secrets.LHCI_GITHUB_APP_TOKEN }}
+        continue-on-error: true
+
+      - name: Upload Lighthouse results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lighthouse-results
+          path: .lighthouseci/
+          retention-days: 30
+
+  # ── Performance Gate Summary ─────────────────────────────────────────────────
+  performance-gate:
+    name: Performance Gate Summary
+    runs-on: ubuntu-latest
+    needs: [k6-load-test, artillery-tests, lighthouse]
+    if: always()
+    steps:
+      - name: Check performance gate results
+        run: |
+          echo "## Performance Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Test Suite | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|------------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| k6 Load Test (500 VUs) | ${{ needs.k6-load-test.result == 'success' && '✅ PASSED' || '❌ FAILED' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Artillery Tests | ${{ needs.artillery-tests.result == 'success' && '✅ PASSED' || '⚠️ CHECK RESULTS' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Lighthouse CI | ${{ needs.lighthouse.result == 'success' && '✅ PASSED' || '⚠️ CHECK RESULTS' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### SLA Thresholds" >> $GITHUB_STEP_SUMMARY
+          echo "- p95 response time < **500ms**" >> $GITHUB_STEP_SUMMARY
+          echo "- p99 response time < **1000ms**" >> $GITHUB_STEP_SUMMARY
+          echo "- Error rate < **1%**" >> $GITHUB_STEP_SUMMARY
+          echo "- Throughput > **100 req/s**" >> $GITHUB_STEP_SUMMARY
+
+      - name: Fail if load test failed
+        if: needs.k6-load-test.result == 'failure'
+        run: |
+          echo "❌ k6 load test failed — SLA thresholds breached"
+          exit 1

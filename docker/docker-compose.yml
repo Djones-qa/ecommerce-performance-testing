@@ -1,0 +1,91 @@
+version: "3.8"
+
+# E-Commerce Performance Testing Stack
+# Provides real-time metrics visualization via Grafana + InfluxDB
+#
+# Usage:
+#   docker-compose up -d          # Start all services
+#   docker-compose down           # Stop all services
+#   docker-compose logs -f grafana # View Grafana logs
+
+services:
+  # ── InfluxDB — Time-series metrics storage ──────────────────────────────────
+  influxdb:
+    image: influxdb:1.8
+    container_name: perf-influxdb
+    ports:
+      - "8086:8086"
+    environment:
+      INFLUXDB_DB: k6
+      INFLUXDB_HTTP_AUTH_ENABLED: "false"
+      INFLUXDB_ADMIN_USER: admin
+      INFLUXDB_ADMIN_PASSWORD: admin123
+      INFLUXDB_USER: k6
+      INFLUXDB_USER_PASSWORD: k6password
+    volumes:
+      - influxdb_data:/var/lib/influxdb
+    networks:
+      - perf-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8086/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Grafana — Real-time metrics dashboard ───────────────────────────────────
+  grafana:
+    image: grafana/grafana:10.2.3
+    container_name: perf-grafana
+    ports:
+      - "3001:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/k6-dashboard.json
+      GF_INSTALL_PLUGINS: grafana-clock-panel,grafana-simple-json-datasource
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/dashboards:/var/lib/grafana/dashboards
+      - ./grafana/provisioning:/etc/grafana/provisioning
+    networks:
+      - perf-network
+    depends_on:
+      influxdb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Mock API Server — Target for load tests ─────────────────────────────────
+  mock-api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: perf-mock-api
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: 3000
+      NODE_ENV: production
+    networks:
+      - perf-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  influxdb_data:
+    driver: local
+  grafana_data:
+    driver: local
+
+networks:
+  perf-network:
+    driver: bridge

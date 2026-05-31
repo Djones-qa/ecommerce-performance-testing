@@ -1,0 +1,118 @@
+# Artillery — Product Search Load Test
+#
+# Tests the search API under sustained load.
+# Search is typically the most CPU-intensive endpoint due to full-text matching.
+#
+# Validates:
+#   - Search response times under concurrent load
+#   - Pagination performance
+#   - Category filtering performance
+#   - Result consistency
+
+config:
+  target: "http://localhost:3000"
+  http:
+    timeout: 5
+    pool: 50
+  plugins:
+    metrics-by-endpoint: {}
+
+  phases:
+    - name: "Ramp Up"
+      duration: 60
+      arrivalRate: 10
+      rampTo: 100
+
+    - name: "Sustained Load"
+      duration: 300
+      arrivalRate: 100
+
+    - name: "Peak Load"
+      duration: 120
+      arrivalRate: 200
+
+    - name: "Ramp Down"
+      duration: 60
+      arrivalRate: 200
+      rampTo: 10
+
+  variables:
+    searchTerms:
+      - "laptop"
+      - "wireless headphones"
+      - "running shoes"
+      - "coffee maker"
+      - "yoga mat"
+      - "phone case"
+      - "desk lamp"
+      - "water bottle"
+      - "backpack"
+      - "sunglasses"
+      - "bluetooth speaker"
+      - "gaming mouse"
+      - "keyboard"
+      - "standing desk"
+      - "air purifier"
+
+    categories:
+      - "electronics"
+      - "clothing"
+      - "home-garden"
+      - "sports"
+      - "books"
+      - "toys"
+      - "beauty"
+      - "automotive"
+
+    sortOptions:
+      - "price_asc"
+      - "price_desc"
+      - "rating"
+      - "newest"
+
+  ensure:
+    p95: 500
+    p99: 1000
+    maxErrorRate: 1
+
+scenarios:
+  - name: "Keyword Search"
+    weight: 50
+    flow:
+      - get:
+          url: "/search?q={{ $randomItem(searchTerms) }}&limit=20"
+          expect:
+            - statusCode: 200
+            - contentType: json
+            - hasProperty: "results"
+            - hasProperty: "total"
+
+  - name: "Paginated Product Browse"
+    weight: 30
+    flow:
+      - get:
+          url: "/products?page={{ $randomInt(1, 10) }}&limit={{ $randomItem([10, 20, 50]) }}&sort={{ $randomItem(sortOptions) }}"
+          expect:
+            - statusCode: 200
+            - hasProperty: "data"
+            - hasProperty: "pagination"
+
+      - get:
+          url: "/products?page={{ $randomInt(1, 10) }}&limit=20&category={{ $randomItem(categories) }}"
+          expect:
+            - statusCode: 200
+
+  - name: "Category Browse + Product Detail"
+    weight: 20
+    flow:
+      - get:
+          url: "/products?category={{ $randomItem(categories) }}&limit=20"
+          expect:
+            - statusCode: 200
+
+      - get:
+          url: "/products/{{ $randomInt(1, 100) }}"
+          expect:
+            - statusCode:
+                - 200
+                - 404

@@ -1,0 +1,125 @@
+# Artillery — Black Friday Checkout Spike Test
+#
+# Simulates the checkout surge that occurs at midnight on Black Friday.
+# Tests the checkout pipeline's ability to handle sudden, extreme load.
+#
+# Scenario:
+#   Phase 1: Warm-up (50 users/sec for 2 min)
+#   Phase 2: THE SPIKE (ramp to 500 users/sec in 30s)
+#   Phase 3: Sustained spike (500 users/sec for 3 min)
+#   Phase 4: Recovery (ramp down to 50 users/sec)
+
+config:
+  target: "http://localhost:3000"
+  http:
+    timeout: 10
+    pool: 100
+  plugins:
+    metrics-by-endpoint: {}
+  processor: "./checkout-processor.js"
+
+  phases:
+    - name: "Warm-up"
+      duration: 120
+      arrivalRate: 50
+      rampTo: 50
+
+    - name: "Black Friday Spike"
+      duration: 30
+      arrivalRate: 50
+      rampTo: 500
+
+    - name: "Sustained Spike"
+      duration: 180
+      arrivalRate: 500
+
+    - name: "Recovery"
+      duration: 60
+      arrivalRate: 500
+      rampTo: 50
+
+  variables:
+    paymentMethods:
+      - "credit_card"
+      - "paypal"
+      - "apple_pay"
+      - "google_pay"
+
+  ensure:
+    p95: 800
+    p99: 1500
+    maxErrorRate: 5
+
+scenarios:
+  - name: "Full Checkout Journey"
+    weight: 70
+    flow:
+      # Step 1: View the hot deal product
+      - get:
+          url: "/products/1"
+          expect:
+            - statusCode: 200
+            - contentType: json
+
+      # Step 2: Add to cart
+      - post:
+          url: "/cart"
+          json:
+            productId: 1
+            quantity: 1
+            sessionId: "{{ $randomString() }}"
+          capture:
+            - json: "$.sessionId"
+              as: "sessionId"
+          expect:
+            - statusCode:
+                - 200
+                - 201
+
+      # Step 3: Checkout
+      - post:
+          url: "/checkout"
+          json:
+            sessionId: "{{ sessionId }}"
+            paymentMethod: "{{ $randomItem(paymentMethods) }}"
+            shippingAddress:
+              street: "123 Black Friday Blvd"
+              city: "New York"
+              state: "NY"
+              zip: "10001"
+              country: "US"
+          expect:
+            - statusCode:
+                - 200
+                - 201
+                - 202
+
+  - name: "Browse and Abandon"
+    weight: 20
+    flow:
+      - get:
+          url: "/products?page={{ $randomInt(1, 5) }}&limit=20"
+          expect:
+            - statusCode: 200
+
+      - get:
+          url: "/products/{{ $randomInt(1, 100) }}"
+          expect:
+            - statusCode:
+                - 200
+                - 404
+
+  - name: "Search and Cart"
+    weight: 10
+    flow:
+      - get:
+          url: "/search?q=laptop"
+          expect:
+            - statusCode: 200
+
+      - post:
+          url: "/cart"
+          json:
+            productId: "{{ $randomInt(1, 100) }}"
+            quantity: 1
+            sessionId: "{{ $randomString() }}"
