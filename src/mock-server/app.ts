@@ -192,7 +192,7 @@ app.get("/products", async (req: Request, res: Response) => {
 app.get("/products/:id", async (req: Request, res: Response) => {
   await simulateLatency(20, 80);
 
-  const id = parseInt(req.params["id"] ?? "0", 10);
+  const id = parseInt(String(req.params["id"] ?? "0"), 10);
   const product = PRODUCTS.find((p) => p.id === id);
 
   if (!product) {
