@@ -49,9 +49,7 @@ export const options: Options = {
     stress_error_rate: ["rate<0.10"],
     ...BASE_THRESHOLDS,
   },
-  // Abort test if error rate exceeds 20% — system has broken
-  thresholdAbortOnFail: true,
-};
+} as Options & { thresholdAbortOnFail?: boolean };
 
 // ─── Main VU Script ────────────────────────────────────────────────────────────
 export default function (): void {

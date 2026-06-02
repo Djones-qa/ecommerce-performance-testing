@@ -56,7 +56,7 @@ export function randomChoice<T>(arr: readonly T[]): T {
 export interface CartItem {
   productId: number;
   quantity: number;
-  variantId?: string;
+  variantId?: string | undefined;
 }
 
 export function generateCartItem(): CartItem {
@@ -91,7 +91,7 @@ export interface CheckoutPayload {
   sessionId: string;
   paymentMethod: string;
   shippingAddress: ShippingAddress;
-  promoCode?: string;
+  promoCode?: string | undefined;
 }
 
 export interface ShippingAddress {

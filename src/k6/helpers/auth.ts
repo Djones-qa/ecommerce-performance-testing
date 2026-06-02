@@ -67,12 +67,32 @@ export function generateAuthToken(credentials?: UserCredentials): AuthToken {
 }
 
 /**
+ * Minimal base64 encoder for k6 (no btoa in k6 runtime).
+ */
+function b64(str: string): string {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+  let result = "";
+  let i = 0;
+  while (i < str.length) {
+    const a = str.charCodeAt(i++);
+    const b = i < str.length ? str.charCodeAt(i++) : 0;
+    const c = i < str.length ? str.charCodeAt(i++) : 0;
+    result +=
+      chars[a >> 2] +
+      chars[((a & 3) << 4) | (b >> 4)] +
+      (i - 1 < str.length + 1 ? chars[((b & 15) << 2) | (c >> 6)] : "=") +
+      (i < str.length + 1 ? chars[c & 63] : "=");
+  }
+  return result;
+}
+
+/**
  * Generate a synthetic bearer token for use with the mock server.
  * Format mirrors a real JWT structure without actual signing.
  */
 export function generateSyntheticToken(): AuthToken {
-  const header = btoa(JSON.stringify({ alg: "HS256", typ: "JWT" }));
-  const payload = btoa(
+  const header = b64(JSON.stringify({ alg: "HS256", typ: "JWT" }));
+  const payload = b64(
     JSON.stringify({
       sub: `vu_${__VU}`,
       iat: Math.floor(Date.now() / 1000),
@@ -80,7 +100,7 @@ export function generateSyntheticToken(): AuthToken {
       role: "customer",
     })
   );
-  const signature = btoa(`sig_${__VU}_${__ITER}`);
+  const signature = b64(`sig_${__VU}_${__ITER}`);
 
   return {
     token: `${header}.${payload}.${signature}`,
