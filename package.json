@@ -5,12 +5,13 @@
   "main": "dist/mock-server/app.js",
   "scripts": {
     "build": "tsc --project tsconfig.json",
+    "k6:bundle": "node esbuild.config.mjs",
     "mock-server": "ts-node src/mock-server/app.ts",
     "mock-server:prod": "node dist/mock-server/app.js",
-    "k6:load": "k6 run --out influxdb=http://localhost:8086/k6 src/k6/scenarios/load-test.ts",
-    "k6:stress": "k6 run --out influxdb=http://localhost:8086/k6 src/k6/scenarios/stress-test.ts",
-    "k6:soak": "k6 run --out influxdb=http://localhost:8086/k6 src/k6/scenarios/soak-test.ts",
-    "k6:spike": "k6 run --out influxdb=http://localhost:8086/k6 src/k6/scenarios/spike-test.ts",
+    "k6:load": "npm run k6:bundle && k6 run --out influxdb=http://localhost:8086/k6 dist/k6/load-test.js",
+    "k6:stress": "npm run k6:bundle && k6 run --out influxdb=http://localhost:8086/k6 dist/k6/stress-test.js",
+    "k6:soak": "npm run k6:bundle && k6 run --out influxdb=http://localhost:8086/k6 dist/k6/soak-test.js",
+    "k6:spike": "npm run k6:bundle && k6 run --out influxdb=http://localhost:8086/k6 dist/k6/spike-test.js",
     "artillery:checkout": "artillery run src/artillery/checkout-spike.yml",
     "artillery:search": "artillery run src/artillery/product-search-load.yml",
     "lighthouse": "lhci autorun",
@@ -18,7 +19,7 @@
     "docker:up": "docker-compose -f docker/docker-compose.yml up -d",
     "docker:down": "docker-compose -f docker/docker-compose.yml down",
     "lint": "eslint src/**/*.ts scripts/**/*.ts --fix",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit && tsc --noEmit --project tsconfig.k6.json"
   },
   "keywords": [
     "k6",
@@ -53,7 +54,9 @@
     "@typescript-eslint/eslint-plugin": "6.19.1",
     "@typescript-eslint/parser": "6.19.1",
     "artillery": "2.0.21",
+    "esbuild": "0.20.1",
     "eslint": "8.56.0",
+    "glob": "10.3.10",
     "ts-node": "10.9.2",
     "typescript": "5.3.3"
   }

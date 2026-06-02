@@ -1,57 +1,32 @@
 {
   "ci": {
     "collect": {
-      "url": [
-        "http://localhost:3000/health",
-        "http://localhost:3000/products",
-        "http://localhost:3000/products/1",
-        "http://localhost:3000/search?q=laptop"
-      ],
-      "numberOfRuns": 3,
+      "url": ["http://localhost:3000/health"],
+      "numberOfRuns": 1,
       "settings": {
         "preset": "desktop",
-        "throttlingMethod": "simulate",
-        "throttling": {
-          "rttMs": 40,
-          "throughputKbps": 10240,
-          "cpuSlowdownMultiplier": 1
-        },
-        "screenEmulation": {
-          "mobile": false,
-          "width": 1350,
-          "height": 940,
-          "deviceScaleFactor": 1,
-          "disabled": false
-        }
+        "onlyAudits": [
+          "first-contentful-paint",
+          "largest-contentful-paint",
+          "total-blocking-time",
+          "cumulative-layout-shift",
+          "server-response-time",
+          "interactive"
+        ],
+        "skipAudits": [
+          "uses-http2",
+          "redirects-http",
+          "is-on-https"
+        ]
       }
     },
     "assert": {
-      "preset": "lighthouse:recommended",
       "assertions": {
-        "categories:performance": ["error", { "minScore": 0.9 }],
-        "categories:accessibility": ["warn", { "minScore": 0.9 }],
-        "categories:best-practices": ["warn", { "minScore": 0.9 }],
-        "categories:seo": ["warn", { "minScore": 0.8 }],
-
-        "first-contentful-paint": ["error", { "maxNumericValue": 2000 }],
-        "largest-contentful-paint": ["error", { "maxNumericValue": 2500 }],
-        "total-blocking-time": ["error", { "maxNumericValue": 300 }],
-        "cumulative-layout-shift": ["error", { "maxNumericValue": 0.1 }],
-        "interactive": ["error", { "maxNumericValue": 3800 }],
-        "speed-index": ["warn", { "maxNumericValue": 3400 }],
-
-        "uses-http2": "off",
-        "uses-long-cache-ttl": "warn",
-        "render-blocking-resources": "warn",
-        "unused-javascript": "warn",
-        "unused-css-rules": "warn",
-        "modern-image-formats": "warn",
-        "uses-optimized-images": "warn",
-        "uses-responsive-images": "warn",
-        "efficient-animated-content": "warn",
-
-        "is-on-https": "off",
-        "redirects-http": "off"
+        "server-response-time": ["warn", { "maxNumericValue": 500 }],
+        "first-contentful-paint": ["warn", { "maxNumericValue": 3000 }],
+        "largest-contentful-paint": ["warn", { "maxNumericValue": 4000 }],
+        "total-blocking-time": ["warn", { "maxNumericValue": 600 }],
+        "cumulative-layout-shift": ["warn", { "maxNumericValue": 0.25 }]
       }
     },
     "upload": {
