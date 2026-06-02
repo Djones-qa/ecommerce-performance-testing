@@ -96,7 +96,6 @@ function generateProducts(): Product[] {
 
 const PRODUCTS = generateProducts();
 const CARTS = new Map<string, Cart>();
-const ORDERS = new Map<string, Order>();
 
 // ─── Utility: Simulate realistic latency ──────────────────────────────────────
 function simulateLatency(minMs: number, maxMs: number): Promise<void> {
@@ -215,17 +214,23 @@ app.get("/products/:id", async (req: Request, res: Response) => {
 app.post("/cart", async (req: Request, res: Response) => {
   await simulateLatency(40, 150);
 
-  const { productId, quantity, sessionId, variantId } = req.body as {
+  const body = req.body as {
     productId?: number;
     quantity?: number;
     sessionId?: string;
     variantId?: string;
   };
 
-  if (!productId || !quantity || !sessionId) {
+  // Validate required fields — after this guard, values are defined
+  if (typeof body.productId !== "number" || typeof body.quantity !== "number" || typeof body.sessionId !== "string") {
     res.status(400).json({ error: "productId, quantity, and sessionId are required" });
     return;
   }
+
+  const productId: number = body.productId;
+  const quantity: number = body.quantity;
+  const sessionId: string = body.sessionId;
+  const variantId: string | undefined = body.variantId;
 
   const product = PRODUCTS.find((p) => p.id === productId);
   if (!product) {
@@ -255,7 +260,7 @@ app.post("/cart", async (req: Request, res: Response) => {
     cart.items.push({
       productId,
       quantity,
-      variantId,
+      ...(variantId !== undefined && { variantId }),
       price: product.price,
       name: product.name,
     });
@@ -292,17 +297,21 @@ app.get("/cart/:sessionId", async (req: Request, res: Response) => {
 app.post("/checkout", async (req: Request, res: Response) => {
   await simulateLatency(100, 400); // Checkout is slower — payment processing
 
-  const { sessionId, paymentMethod, shippingAddress } = req.body as {
+  const body = req.body as {
     sessionId?: string;
     paymentMethod?: string;
     shippingAddress?: Record<string, string>;
     promoCode?: string;
   };
 
-  if (!sessionId || !paymentMethod || !shippingAddress) {
+  if (typeof body.sessionId !== "string" || typeof body.paymentMethod !== "string" || !body.shippingAddress) {
     res.status(400).json({ error: "sessionId, paymentMethod, and shippingAddress are required" });
     return;
   }
+
+  const sessionId: string = body.sessionId;
+  const paymentMethod: string = body.paymentMethod;
+  const shippingAddress: Record<string, string> = body.shippingAddress;
 
   const cart = CARTS.get(sessionId);
   if (!cart || cart.items.length === 0) {
@@ -329,7 +338,6 @@ app.post("/checkout", async (req: Request, res: Response) => {
     estimatedDelivery: deliveryDate.toISOString().split("T")[0] as string,
   };
 
-  ORDERS.set(orderId, order);
   CARTS.delete(sessionId); // Clear cart after checkout
 
   res.status(201).json({
