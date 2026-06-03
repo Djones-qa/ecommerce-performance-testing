@@ -78,10 +78,10 @@ function b64(str: string): string {
     const b = i < str.length ? str.charCodeAt(i++) : 0;
     const c = i < str.length ? str.charCodeAt(i++) : 0;
     result +=
-      chars[a >> 2] +
-      chars[((a & 3) << 4) | (b >> 4)] +
-      (i - 1 < str.length + 1 ? chars[((b & 15) << 2) | (c >> 6)] : "=") +
-      (i < str.length + 1 ? chars[c & 63] : "=");
+      chars.charAt(a >> 2) +
+      chars.charAt(((a & 3) << 4) | (b >> 4)) +
+      (i - 1 < str.length + 1 ? chars.charAt(((b & 15) << 2) | (c >> 6)) : "=") +
+      (i < str.length + 1 ? chars.charAt(c & 63) : "=");
   }
   return result;
 }
