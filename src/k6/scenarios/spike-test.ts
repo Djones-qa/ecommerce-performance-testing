@@ -125,7 +125,7 @@ export default function (): void {
       JSON.stringify({ ...cartItem, sessionId: token.sessionId }),
       {
         headers,
-        tags: { endpoint: "cart_spike" },
+        tags: { endpoint: "cart_spike", name: "POST /cart" },
         timeout: "5s",
       }
     );
@@ -151,7 +151,7 @@ export default function (): void {
         JSON.stringify(checkoutPayload),
         {
           headers,
-          tags: { endpoint: "checkout_spike" },
+          tags: { endpoint: "checkout_spike", name: "POST /checkout" },
           timeout: "10s",
         }
       );

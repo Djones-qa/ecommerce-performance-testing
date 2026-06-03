@@ -152,7 +152,7 @@ export default function (): void {
 
     const viewRes = http.get(`${BASE_URL}/cart/${token.sessionId}`, {
       headers,
-      tags: { endpoint: "cart_view_soak" },
+      tags: { endpoint: "cart_view_soak", name: "GET /cart/:sessionId" },
     });
 
     check(viewRes, {
@@ -169,7 +169,7 @@ export default function (): void {
       const res = http.post(
         `${BASE_URL}/checkout`,
         JSON.stringify(checkoutPayload),
-        { headers, tags: { endpoint: "checkout_soak" } }
+        { headers, tags: { endpoint: "checkout_soak", name: "POST /checkout" } }
       );
 
       const ok = check(res, {
