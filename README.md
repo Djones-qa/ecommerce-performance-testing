@@ -247,7 +247,7 @@ Trigger specific test types manually via **Actions → Run workflow → test_typ
 **Darrius Jones**
 
 [![GitHub](https://img.shields.io/badge/GitHub-Djones--qa-181717?logo=github)](https://github.com/Djones-qa)
-[![LinkedIn](https://img.shields.io/badge/LinkedIn-Connect-0A66C2?logo=linkedin)](https://linkedin.com/in/darrius-jones)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-Connect-0A66C2?logo=linkedin)](https://linkedin.com/in/darrius-jones-28226b350)
 
 ---
 
